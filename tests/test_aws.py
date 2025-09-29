@@ -1,29 +1,20 @@
-from unittest.mock import Mock, patch
 from src.lambda_ingestion import lambda_ingestion
-import pg8000.native
-from dotenv import dotenv_values
-import datetime
+from moto import mock_aws
+import boto3
 
-config = dotenv_values(".env")
+@mock_aws
+def test_ingestion_lambda():    
+    conn = boto3.resource("s3", region_name="us-east-1")
+    conn.create_bucket(Bucket="nc-joe-ingestion-bucket-2025")
+    conn.create_bucket(Bucket='nc-lambda-bucket-joe-final-project-2025')
+    result = 'no new updates'
+    while result == 'no new updates':
 
-con = pg8000.native.Connection(config['USER'], host=config['HOST'], database=config['DATABASE'], port=config['PORT'], password=config['PASSWORD'])
-
-# my_mock_last_updated = Mock(return_value=datetime.datetime.now() + datetime.timedelta(minutes=2))
-
-my_mock_put_object = Mock(return_value = 5)
-
-class MockPutObject:
-    def __init__(self,):
-        self.put_object = my_mock_put_object
-
-# class MockLastUpdated():
-#     def __init__(self):
-#         self.run = my_mock_last_updated
-
-def test_aws_s3_client(): 
-    patcher_put_object = patch('src.lambda_ingestion.boto3.client', return_value = MockPutObject())
-    mock_put_object = patcher_put_object.start()
-    assert lambda_ingestion({}, {}) == 'success' or 'no new updates'
-    patcher_put_object.stop()
-
-
+        result = lambda_ingestion({}, {})
+        
+    # body = conn.Object("nc-joe-ingestion-bucket-2025", "sales_order/").get()["Body"].read().decode("utf-8")
+    
+    bucket = conn.Bucket('nc-joe-ingestion-bucket-2025')
+    for files in bucket.objects.filter(Prefix='sales_order'):
+        print('here', files)
+    assert False
