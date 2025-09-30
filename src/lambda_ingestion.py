@@ -26,7 +26,7 @@ def lambda_ingestion(event, target):
     for table in ['sales_order', 'staff', 'department']:
         last_updated = con.run(f'SELECT last_updated FROM {table} ORDER BY last_updated DESC LIMIT 1')[0][0]
         if last_updated > DATETIME_NOW[table]:
-            logging.info(f'new update for table {table}, processing')
+            logging.info(f'new update for table "{table}"; processing')
             values = con.run(f'SELECT * FROM {table}')
             df = pd.DataFrame(data=values, columns=TABLE_LIST[table])
             logging.info('connecting to s3')
@@ -34,12 +34,12 @@ def lambda_ingestion(event, target):
                 s3_client.put_object(Key=f'{table}/{last_updated.strftime('%a %d %b %Y, %I:%M%p (%f)')}.csv', Body=df.to_csv(index=False), Bucket='nc-joe-ingestion-bucket-2025')
                 DATETIME_NOW[table] = last_updated
             except ClientError as e:
-                logging.info(f'upload for table {table} failed with error {e}')
+                logging.info(f'upload for table "{table}" failed with error {e}')
                 # return 'failure'
-            logging.info(f'upload for table {table} successful')
+            logging.info(f'upload for table "{table}" successful')
             # return 'success'
         else:
-            logging.info(f'no new updates for table {table}')
+            logging.info(f'no new updates for table "{table}"')
     stringified_datetimes = {}
     for key, value in DATETIME_NOW.items():
         stringified_datetimes[key] = value.strftime('%a %d %b %Y, %I:%M%p (%f)')
