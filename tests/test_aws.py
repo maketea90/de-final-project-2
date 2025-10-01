@@ -48,7 +48,9 @@ def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
     s3_client = boto3.client('s3')
     for table in ['sales_order', 'staff', 'department']:
         result = s3_client.get_object(Bucket='nc-joe-ingestion-bucket-2025', Key=f'{table}/{latest_update[table]}.csv')
-        print(result)
+        print(result, '\n\n')
+    parquet_files = s3_client.list_objects(Bucket='nc-joe-processed-bucket-2025')
+    print(parquet_files)
     assert False
 
 @pytest.mark.skip(reason="no reason")
