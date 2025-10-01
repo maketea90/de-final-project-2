@@ -18,9 +18,8 @@ TABLE_LIST = {'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'd
 
 # DATETIME_NOW = {'sales_order': datetime.datetime(1,1,1,1,1,1,1), 'staff' : datetime.datetime(1,1,1,1,1,1,1)}
 
-DATETIME_NOW = {table: datetime.datetime(1,1,1,1,1,1,1) for table in TABLE_LIST.keys()}
-
 def lambda_ingestion(event, target):
+    DATETIME_NOW = {table: datetime.datetime(1,1,1,1,1,1,1) for table in TABLE_LIST.keys()}
     s3_client=boto3.client('s3')
     con = pg8000.native.Connection(config['USER'], host=config['HOST'], database=config['DATABASE'], port=config['PORT'], password=config['PASSWORD'])
     for table in ['sales_order', 'staff', 'department']:
