@@ -30,7 +30,7 @@ def fetch_data():
     result = s3_client.get_object(Bucket='nc-lambda-bucket-joe-final-project-2025', Key='latest_update.json')
     result = result['Body'].read().decode('utf-8')
     latest_update = json.loads(result)
-    # print(latest_update)
+    print(latest_update)
     data = {}
     for table in TABLE_LIST.keys():
         try:
@@ -40,19 +40,21 @@ def fetch_data():
             data[table] = pd.read_csv(object_content)
             first_row = data[table].iloc[0]
         except ClientError as e:
-            logging.info(f'fetching data from table "{table}" failed due to error {e}')
+            logging.info(f'fetching data from table "{table}" failed due to {e}')
         else:
-            logging.info(f'data from table "{table}" was successfully fetched')
+            logging.info(f'data from table "{table}" successfully retrieved')
         # print(first_row)
     logging.info('process complete')
-    return data
+    return data, latest_update
 
 def lambda_processing(event, target):
     s3_client = boto3.client('s3')
     logging.info('fetching data from s3 ingestion bucket')
-    data = fetch_data()
+    data, latest_update = fetch_data()
+    logging.info('processing data')
     df_dim_staff = process_staff_data(data)
     df_fact_sales_order = process_sales_order_data(data)
+    logging.info('loading processed data to s3')
     try:
         parqueted_dim_staff = df_dim_staff.to_parquet(index=False)
         # print(parqueted_dim_staff)
@@ -69,3 +71,4 @@ def lambda_processing(event, target):
         logging.info(f'upload of processed data "fact_sales_order" failed due to {e}')
     else:
         logging.info('upload of processed data "fact_sales_order" was successful')
+    return latest_update

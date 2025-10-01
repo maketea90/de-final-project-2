@@ -36,7 +36,8 @@ def lambda_ingestion(event, target):
             except ClientError as e:
                 logging.info(f'upload for table "{table}" failed with error {e}')
                 # return 'failure'
-            logging.info(f'upload for table "{table}" successful')
+            else:
+                logging.info(f'upload for table "{table}" successful')
             # return 'success'
         else:
             logging.info(f'no new updates for table "{table}"')

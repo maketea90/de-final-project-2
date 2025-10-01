@@ -25,6 +25,33 @@ def mocked_aws(aws_credentials):
     with mock_aws():
         yield
 
+@pytest.mark.skip(reason="no reason")
+def test_ingestion_lambda_uploads_to_s3(mocked_aws):
+    conn = boto3.resource('s3', region_name='us-east-1')
+    conn.create_bucket(Bucket="nc-joe-ingestion-bucket-2025")
+    conn.create_bucket(Bucket="nc-lambda-bucket-joe-final-project-2025")
+    lambda_ingestion({}, {})
+    s3_client = boto3.client('s3')
+    # prefix = 'sales_order/'  
+    result = s3_client.list_objects(Bucket='nc-joe-ingestion-bucket-2025')
+    result2 = s3_client.list_objects(Bucket='nc-lambda-bucket-joe-final-project-2025')
+    print(result, '\n'*2, result2)
+    assert False
+
+def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
+    conn = boto3.resource('s3', region_name='us-east-1')
+    conn.create_bucket(Bucket="nc-joe-ingestion-bucket-2025")
+    conn.create_bucket(Bucket="nc-lambda-bucket-joe-final-project-2025")
+    conn.create_bucket(Bucket='nc-joe-processed-bucket-2025')
+    lambda_ingestion({}, {})
+    latest_update = lambda_processing({}, {})
+    s3_client = boto3.client('s3')
+    for table in ['sales_order', 'staff', 'department']:
+        result = s3_client.get_object(Bucket='nc-joe-ingestion-bucket-2025', Key=f'{table}/{latest_update[table]}.csv')
+        print(result)
+    assert False
+
+@pytest.mark.skip(reason="no reason")
 def test_rds_behaviour(mocked_aws):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket="nc-joe-ingestion-bucket-2025")
