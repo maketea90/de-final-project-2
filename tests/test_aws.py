@@ -32,11 +32,13 @@ def test_rds_behaviour(mocked_aws):
     conn.create_bucket(Bucket='nc-joe-processed-bucket-2025')
     
     rds_client = boto3.client("rds")
-    rds_client.create_db_cluster(DatabaseName='warehouse', Port=8080, MasterUsername='username',
-    MasterUserPassword='password', DBClusterIdentifier='cluster-1', Engine='postgres')
-    description = rds_client.describe_db_clusters(DBClusterIdentifier='cluster-1')
-    hostname = description['DBClusters'][0]['Endpoint']
-    print(hostname)
+    rds_client.create_db_instance(DBName='warehouse', Port=8080, MasterUsername='username',
+    MasterUserPassword='password', DBInstanceIdentifier='warehouse', Engine='postgres', DBInstanceClass='db.m5.small')
+    description = rds_client.describe_db_instances(DBInstanceIdentifier='warehouse')
+    hostname = description['DBInstances'][0]['Endpoint']['Address']
+    log_files = rds_client.describe_db_log_files(DBInstanceIdentifier='warehouse')
+    print(description)
+    print(log_files)
     lambda_ingestion({}, {})
     lambda_processing({}, {})
     lambda_warehousing({}, {}, hostname)

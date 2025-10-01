@@ -4,6 +4,10 @@ import logging
 import pg8000.native
 import psycopg2
 import io
+import awswrangler as wr
+from dotenv import dotenv_values
+
+config = dotenv_values(".env")
 
 def fetch_dim_staff():
     pass
@@ -20,7 +24,7 @@ def lambda_warehousing(event, target, hostname):
     except Exception as e:
         logging.info(f'dim_staff parquet file fetch failed due to {e}')
     else:
-        logging.info('dim_staff parquet data successfully fetched')
+        logging.info('dim_staff parquet data successfully retrieved')
     try:
         logging.info('fetching fact_sales_order parquet data from processed bucket')
         fact_sales_order_parquet = s3_client.get_object(Bucket='nc-joe-processed-bucket-2025', Key='fact_sales_order.parquet')
@@ -30,17 +34,34 @@ def lambda_warehousing(event, target, hostname):
     except Exception as e:
         logging.info(f'dim_staff parquet file fetch failed due to {e}')
     else:
-        logging.info('dim_staff parquet data successfully fetched')
+        logging.info('dim_staff parquet data successfully retrieved')
     logging.info('attempting connection to rds database')
-    conn_string = f"host={hostname} dbname='warehouse' user='username' password='password' port=8080"
-    connection = psycopg2.connect(conn_string)
-    cursor = connection.cursor()
 
-    cursor.execute("SELECT version();")
-    version = cursor.fetchone()
-    print(version)
+    con = pg8000.native.Connection(config['WAREHOUSE_USER'], host=config['WAREHOUSE_HOST'], database=config['WAREHOUSE_DATABASE'], port=config['WAREHOUSE_PORT'], password=config['WAREHOUSE_PASSWORD'])
 
-    connection.close()
+    logging.info('loading dim_staff data to rds')
+    try:
+        wr.postgresql.to_sql(data['dim_staff'], con, schema="public", table="dim_staff", mode="overwrite", chunksize=1000)
+        logging.info('successfully loaded batch from dim_staff into rds')
+    except Exception as e:
+        logging.info('failed to load data from table "dim_staff" into rds')
+        raise e
+    logging.info('loading data from fact_sales_order into rds')
+    try:
+        wr.postgresql.to_sql(data['fact_sales_order'], con, schema='public', table='fact_sales_order', mode='overwrite', chunksize=1000)
+        logging.info('successfully loaded batch from fact_sales_order into rds')
+    except Exception as e:
+        logging.info('failed to load data from table "fact_sales_order" into rds')
+        raise e
+    # conn_string = f"host={hostname} dbname=warehouse user=username password=password port=8080"
+    # connection = psycopg2.connect(conn_string)
+    # cursor = connection.cursor()
+
+    # cursor.execute("SELECT version();")
+    # version = cursor.fetchone()
+    # print(version)
+
+    # connection.close()
     # con = pg8000.native.Connection(user='username', host=hostname, database='warehouse', port=8080, password='password')
     # con.run('''CREATE TABLE staff
     # (
