@@ -45,3 +45,4 @@ def lambda_ingestion(event, target):
     for key, value in DATETIME_NOW.items():
         stringified_datetimes[key] = value.strftime('%a %d %b %Y, %I:%M%p (%f)')
     s3_client.put_object(Key='latest_update.json', Body=json.dumps(stringified_datetimes), Bucket='nc-lambda-bucket-joe-final-project-2025')
+    return stringified_datetimes

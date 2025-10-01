@@ -5,6 +5,7 @@ from moto import mock_aws
 import boto3
 import pytest
 import os
+from moto.core import patch_client
 
 @pytest.fixture(scope="function")
 def aws_credentials():
@@ -38,20 +39,26 @@ def test_ingestion_lambda_uploads_to_s3(mocked_aws):
     print(result, '\n'*2, result2)
     assert False
 
+# @pytest.mark.skip(reason='nothing')
 def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket="nc-joe-ingestion-bucket-2025")
     conn.create_bucket(Bucket="nc-lambda-bucket-joe-final-project-2025")
     conn.create_bucket(Bucket='nc-joe-processed-bucket-2025')
-    lambda_ingestion({}, {})
-    latest_update = lambda_processing({}, {})
-    s3_client = boto3.client('s3')
+    latest_update = lambda_ingestion({}, {})
+    lambda_processing({}, {})   
+    s3_client = boto3.client('s3') 
+    ingestion_bucket = s3_client.list_objects(Bucket='nc-joe-ingestion-bucket-2025')
+    processed_bucket = s3_client.list_objects(Bucket='nc-joe-processed-bucket-2025')
+    ingestion_bucket_files = [item['Key'] for item in ingestion_bucket['Contents']]
+    print(ingestion_bucket_files, '\n\n')
+    processed_bucket_files = [item['Key'] for item in processed_bucket['Contents']]
+    print(processed_bucket_files)
+    ingestion_files = []
     for table in ['sales_order', 'staff', 'department']:
-        result = s3_client.get_object(Bucket='nc-joe-ingestion-bucket-2025', Key=f'{table}/{latest_update[table]}.csv')
-        print(result, '\n\n')
-    parquet_files = s3_client.list_objects(Bucket='nc-joe-processed-bucket-2025')
-    print(parquet_files)
-    assert False
+        ingestion_files.append(f'{table}/{latest_update[table]}.csv')
+    assert set(ingestion_bucket_files) == set(ingestion_files)
+    assert set(processed_bucket_files) == set(['dim_staff.parquet', 'fact_sales_order.parquet'])
 
 @pytest.mark.skip(reason="no reason")
 def test_rds_behaviour(mocked_aws):
