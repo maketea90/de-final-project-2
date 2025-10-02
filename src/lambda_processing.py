@@ -11,8 +11,10 @@ logger.setLevel(logging.INFO)
 TABLE_LIST = {'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated']}
 
 def process_staff_data(data):
-    department = data['department'][['department_id', 'department_name']]
+    department = data['department'][['department_id', 'department_name', 'location']]
     merged = pd.merge(data['staff'], department, on='department_id',  how='left').drop('department_id', axis=1)
+    merged = merged.drop('created_at', axis=1)
+    merged = merged.drop('last_updated', axis=1)
     return merged
 
 def process_sales_order_data(data):
@@ -23,6 +25,7 @@ def process_sales_order_data(data):
     # print(df_sales_order.head())
     df_sales_order = df_sales_order.drop('created_at', axis=1)
     df_sales_order= df_sales_order.drop('last_updated', axis=1)
+    df_sales_order = df_sales_order.rename(columns={'staff_id': 'sales_staff_id'})
     return df_sales_order
 
 def fetch_data():

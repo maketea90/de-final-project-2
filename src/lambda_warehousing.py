@@ -54,4 +54,4 @@ def lambda_warehousing(event, target):
         logging.info('failed to load data from table "fact_sales_order" into rds')
         raise e
 
-    logging.info('finished')
+    logging.info('process complete')
