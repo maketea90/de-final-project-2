@@ -9,9 +9,6 @@ from dotenv import dotenv_values
 
 config = dotenv_values(".env")
 
-def fetch_dim_staff():
-    pass
-
 def lambda_warehousing(event, target):
     s3_client = boto3.client('s3')
     data = {}
@@ -20,7 +17,6 @@ def lambda_warehousing(event, target):
         dim_staff_parquet = s3_client.get_object(Bucket='nc-joe-processed-bucket-2025', Key='dim_staff.parquet')
         df_dim_staff = pd.read_parquet(io.BytesIO(dim_staff_parquet['Body'].read()))
         data['dim_staff'] = df_dim_staff
-        # print(data['dim_staff'].iloc[0])
     except Exception as e:
         logging.info(f'dim_staff parquet file fetch failed due to {e}')
     else:
@@ -30,7 +26,6 @@ def lambda_warehousing(event, target):
         fact_sales_order_parquet = s3_client.get_object(Bucket='nc-joe-processed-bucket-2025', Key='fact_sales_order.parquet')
         df_fact_sales_order = pd.read_parquet(io.BytesIO(fact_sales_order_parquet['Body'].read()))
         data['fact_sales_order'] = df_fact_sales_order
-        # print(data['fact_sales_order'].iloc[0])
     except Exception as e:
         logging.info(f'dim_staff parquet file fetch failed due to {e}')
     else:
@@ -53,5 +48,4 @@ def lambda_warehousing(event, target):
     except Exception as e:
         logging.info('failed to load data from table "fact_sales_order" into rds')
         raise e
-
     logging.info('process complete')

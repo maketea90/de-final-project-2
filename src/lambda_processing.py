@@ -22,7 +22,6 @@ def process_sales_order_data(data):
     df_sales_order[['last_updated_date', 'last_updated_time']] = df_sales_order['last_updated'].str.split(' ', n=1, expand=True)
     df_sales_order[['created_at_date', 'created_at_time']] = df_sales_order['created_at'].str.split(' ', n=1, expand=True)
     df_sales_order.index.name = 'sales_record_id'
-    # print(df_sales_order.head())
     df_sales_order = df_sales_order.drop('created_at', axis=1)
     df_sales_order= df_sales_order.drop('last_updated', axis=1)
     df_sales_order = df_sales_order.rename(columns={'staff_id': 'sales_staff_id'})
@@ -41,12 +40,10 @@ def fetch_data():
             response = s3_client.get_object(Bucket='nc-joe-ingestion-bucket-2025', Key=f'{table}/{latest_update[table]}.csv')
             object_content = StringIO(response['Body'].read().decode('utf-8'))
             data[table] = pd.read_csv(object_content)
-            first_row = data[table].iloc[0]
         except ClientError as e:
             logging.info(f'fetching data from table "{table}" failed due to {e}')
         else:
             logging.info(f'data from table "{table}" successfully retrieved')
-        # print(first_row)
     logging.info('process complete')
     return data, latest_update
 
@@ -60,7 +57,6 @@ def lambda_processing(event, target):
     logging.info('loading processed data to s3')
     try:
         parqueted_dim_staff = df_dim_staff.to_parquet(index=False)
-        # print(parqueted_dim_staff)
         s3_client.put_object(Bucket='nc-joe-processed-bucket-2025', Key='dim_staff.parquet', Body=parqueted_dim_staff)
     except Exception as e:
         logging.info(f'upload of processed data "dim_staff" failed due to {e}')
@@ -68,7 +64,6 @@ def lambda_processing(event, target):
         logging.info(f'upload of processed data "dim_staff" was successful')
     try:
         parqueted_fact_sales_order = df_fact_sales_order.to_parquet(index=False)
-        # print(parqueted_fact_sales_order)
         s3_client.put_object(Bucket='nc-joe-processed-bucket-2025', Key='fact_sales_order.parquet', Body=parqueted_fact_sales_order)
     except Exception as e:
         logging.info(f'upload of processed data "fact_sales_order" failed due to {e}')
