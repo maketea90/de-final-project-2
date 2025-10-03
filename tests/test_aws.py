@@ -76,8 +76,17 @@ def test_rds_behaviour(mocked_aws):
     s3_client.put_object(Bucket='nc-joe-processed-bucket-2025', Key='dim_staff.parquet', Body=body1)
     s3_client.put_object(Bucket='nc-joe-processed-bucket-2025', Key='fact_sales_order.parquet', Body=body2)
     lambda_warehousing({}, {})
+   
+    test_data_duplicate = [[2, 3, 19, 8, 100000, 3.94, 2, '2022-11-07', '2022-11-08', 8, '2022-11-03', '20:00:00.186', '2022-11-03', '14:20:52.186'], [3, 4, 10, 4, 100000, 2.91, 3, '2022-11-06', '2022-11-07', 19, '2022-11-03', '20:00:00.188', '2022-11-03', '14:20:52.188'], [4, 4, 10, 16, 100000, 3.89, 2, '2022-11-05', '2022-11-07', 15, '2022-11-03', '20:00:00.188', '2022-11-03', '14:20:52.188'], [5, 7, 18, 4, 100000, 2.41, 3, '2022-11-05', '2022-11-08', 25, '2022-11-03', '20:00:00.186', '2022-11-03', '14:20:52.186'], [6, 3, 13, 18, 100000, 3.99, 3, '2022-11-04', '2022-11-07', 17, '2022-11-04', '20:00:00.341', '2022-11-04', '11:37:10.341']]
+    test_df_duplicate = pd.DataFrame(data=test_data_duplicate, columns=['sales_order_id', 'design_id', 'sales_staff_id', 'counterparty_id', 'units_sold', 'unit_price','currency_id','agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id', 'last_updated_date', 'last_updated_time', 'created_at_date', 'created_at_time'])
+    body4 = test_df_duplicate.to_parquet(index=False)
+    # s3_client.put_object(Bucket='nc-joe-processed-bucket-2025', Key='dim_staff.parquet', Body=body3)
+    s3_client.put_object(Bucket='nc-joe-processed-bucket-2025', Key='fact_sales_order.parquet', Body=body4)
+    lambda_warehousing({}, {})
     con_rds = pg8000.native.Connection('postgres', database=config['WAREHOUSE_DATABASE'], port=config['WAREHOUSE_PORT'], password=config['WAREHOUSE_PASSWORD'])
-    dim_sales = con_rds.run('SELECT * FROM dim_staff')
+    dim_staff = con_rds.run('SELECT * FROM dim_staff')
     fact_sales_order = con_rds.run('SELECT * FROM fact_sales_order')
-    assert dim_sales == test_data1
-    assert fact_sales_order == test_data2
+    # print(dim_staff*2)
+    assert dim_staff == test_data1
+    assert fact_sales_order == test_data2 + test_data_duplicate
+    # assert False

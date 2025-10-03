@@ -43,7 +43,7 @@ def lambda_warehousing(event, target):
         raise e
     logging.info('loading data from fact_sales_order into rds')
     try:
-        wr.postgresql.to_sql(data['fact_sales_order'], con, schema='public', table='fact_sales_order', mode='overwrite', chunksize=1000)
+        wr.postgresql.to_sql(data['fact_sales_order'], con, schema='public', table='fact_sales_order', mode='append', chunksize=1000)
         logging.info('successfully loaded batch from fact_sales_order into rds')
     except Exception as e:
         logging.info('failed to load data from table "fact_sales_order" into rds')
