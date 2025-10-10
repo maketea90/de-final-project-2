@@ -22,14 +22,16 @@ def process_staff_data(data):
 def process_sales_order_data(data):
     df_sales_order = data['sales_order']
     df_sales_order[['last_updated_date', 'last_updated_time']] = df_sales_order['last_updated'].str.split(' ', n=1, expand=True)
-    df_sales_order[['created_at_date', 'created_at_time']] = df_sales_order['created_at'].str.split(' ', n=1, expand=True)
+    df_sales_order[['created_date', 'created_time']] = df_sales_order['created_at'].str.split(' ', n=1, expand=True)
     # df_sales_order.index.name = 'sales_record_id'
     # print(df_sales_order.iloc[0])
     df_sales_order = df_sales_order.drop('created_at', axis=1)
     df_sales_order= df_sales_order.drop('last_updated', axis=1)
     df_sales_order = df_sales_order.rename(columns={'staff_id': 'sales_staff_id'})
-    df_sales_order = df_sales_order.rename(columns={'sales_order_id': 'sales_record_id'})
+    # df_sales_order['sales_staff_id'] = df_sales_order['sales_staff_id'].map(int)
+    # df_sales_order = df_sales_order.rename(columns={'sales_order_id': 'sales_record_id'})
     # print(df_sales_order.iloc[0])
+    print(df_sales_order.dtypes)
     return df_sales_order
 
 def process_counterparty_data(data):
@@ -42,7 +44,7 @@ def process_counterparty_data(data):
     merged = pd.merge(df_counterparty, df_address, left_on='legal_address_id', right_on='address_id', how='left').drop('address_id', axis=1)
     for column in ['legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at_x', 'last_updated_x','created_at_y', 'last_updated_y']:
         merged = merged.drop(f'{column}', axis=1)
-    merged = merged.rename(columns={'address_line_1': 'counterparty_legal_address_line_1', 'address_line_2': 'counterparty_legal_address_line_2', 'district': 'counterparty_legal_district', 'city': 'counterparty_legal_city', 'postal_code': 'counterparty_legal_postal_code', 'country': 'counterparty_legal_country', 'phone': 'counterparty_legal_phone_number'})
+    merged = merged.rename(columns={'address_line_1': 'counterparty_legal_address_line_1', 'address_line_2': 'counterparty_legal_address_line_2', 'district': 'counterparty_legal_district', 'city': 'counterparty_legal_city', 'postal_code': 'counterparty_legal_postcode', 'country': 'counterparty_legal_country', 'phone': 'counterparty_legal_phone_number'})
     # print(merged.iloc[0])
     merged = merged.fillna(value=np.nan)
     return merged
@@ -64,8 +66,8 @@ def process_currency_data(data):
         return df
 
 def process_dates(data):
-    df_sales_order_dates = data['sales_order'][['last_updated_date', 'created_at_date', 'agreed_delivery_date', 'agreed_payment_date']]
-    frames = [df_sales_order_dates['last_updated_date'], df_sales_order_dates['created_at_date'], df_sales_order_dates['agreed_delivery_date'], df_sales_order_dates['agreed_payment_date']]
+    df_sales_order_dates = data['sales_order'][['last_updated_date', 'created_date', 'agreed_delivery_date', 'agreed_payment_date']]
+    frames = [df_sales_order_dates['last_updated_date'], df_sales_order_dates['created_date'], df_sales_order_dates['agreed_delivery_date'], df_sales_order_dates['agreed_payment_date']]
     df_sales_order_dates = pd.concat(frames).drop_duplicates()
     df_dates = pd.DataFrame(columns=['date_id', 'year', 'month', 'day', 'day_of_week', 'day_name', 'month_name', 'quarter'])
     df_dates['date_id'] = df_sales_order_dates
@@ -101,6 +103,7 @@ def process_location(data):
         df_location = df_location.drop(f'{column}', axis=1)
     df_location = df_location.rename(columns={'address_id': 'location_id'})
     print(df_location.iloc[0])
+    df_location.drop_duplicates(inplace=True)
     return df_location
 
 def fetch_data():

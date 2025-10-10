@@ -8,6 +8,7 @@ import awswrangler as wr
 from dotenv import dotenv_values
 
 config = dotenv_values(".env")
+conflict_columns = {'dim_staff': 'staff_id', 'dim_counterparty': 'counterparty_id', 'dim_date': 'date_id', 'dim_currency': 'currency_id', 'dim_design': 'design_id', 'dim_location': 'location_id'}
 
 def lambda_warehousing(event, target):
     s3_client = boto3.client('s3')
@@ -27,17 +28,19 @@ def lambda_warehousing(event, target):
     for dim_table in ['dim_staff', 'dim_counterparty', 'dim_date', 'dim_currency', 'dim_design', 'dim_location']:
         logging.info(f'loading {dim_table} data to rds')
         try:
-            wr.postgresql.to_sql(data[dim_table], con, schema='public', table=f'{dim_table}', mode='overwrite', chunksize=1000)
+            print(data[dim_table].iloc[0])
+            wr.postgresql.to_sql(data[dim_table], con, schema='public', table=f'{dim_table}', mode='upsert', chunksize=1000, upsert_conflict_columns=[conflict_columns[dim_table]])
             logging.info(f'successfully loaded batch from "{dim_table}" into rds')
         except Exception as e:
-            logging.info(f'failed to load data from table "{dim_table}" into rds')
+            logging.info(f'failed to load data from table "{dim_table}" into rds: {e}')
             raise e
     for fact_table in ['fact_sales_order']:
         logging.info(f'loading {fact_table} data into rds')
+        print(data[fact_table].iloc[0])
         try:
             wr.postgresql.to_sql(data[fact_table], con, schema='public', table=f'{fact_table}', mode='append', chunksize=1000)
             logging.info(f'successfully loaded batch from "{fact_table}" into rds')
         except Exception as e:
-            logging.info(f'failed to load data from table "{fact_table}" into rds')
+            logging.info(f'failed to load data from table "{fact_table}" into rds: {e}')
             raise e
     logging.info('warehousing lambda complete')
