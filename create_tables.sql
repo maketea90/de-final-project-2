@@ -60,7 +60,7 @@ CREATE TABLE dim_staff (
 );
 
 CREATE TABLE fact_sales_order (
-    sales_order_id INT PRIMARY KEY NOT NULL,
+    sales_order_id INT NOT NULL,
     design_id INT REFERENCES dim_design(design_id) NOT NULL,
     sales_staff_id INT REFERENCES dim_staff(staff_id) NOT NULL,
     counterparty_id INT REFERENCES dim_counterparty(counterparty_id) NOT NULL,
@@ -73,5 +73,6 @@ CREATE TABLE fact_sales_order (
     last_updated_date DATE REFERENCES dim_date(date_id) NOT NULL,
     last_updated_time TIME NOT NULL,
     created_date DATE REFERENCES dim_date(date_id) NOT NULL,
-    created_time TIME NOT NULL
+    created_time TIME NOT NULL,
+    sales_record_id SERIAL PRIMARY KEY
 );
