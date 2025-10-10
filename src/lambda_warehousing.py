@@ -12,7 +12,7 @@ config = dotenv_values(".env")
 def lambda_warehousing(event, target):
     s3_client = boto3.client('s3')
     data = {}
-    for table in ['dim_staff', 'dim_counterparty', 'fact_sales_order', 'dim_date', 'dim_currency']:
+    for table in ['dim_staff', 'dim_counterparty', 'fact_sales_order', 'dim_date', 'dim_currency', 'dim_design',  'dim_location']:
         try:
             logging.info(f'fetching {table} parquet data from processed bucket')
             s3_path = f"s3://nc-joe-processed-bucket-2025/{table}.parquet"
@@ -24,7 +24,7 @@ def lambda_warehousing(event, target):
             logging.info(f'{table} parquet data successfully retrieved')
     logging.info('attempting connection to rds database')
     con = pg8000.Connection('postgres', database=config['WAREHOUSE_DATABASE'], port=config['WAREHOUSE_PORT'], password=config['WAREHOUSE_PASSWORD'])
-    for dim_table in ['dim_staff', 'dim_counterparty', 'dim_date', 'dim_currency']:
+    for dim_table in ['dim_staff', 'dim_counterparty', 'dim_date', 'dim_currency', 'dim_design', 'dim_location']:
         logging.info(f'loading {dim_table} data to rds')
         try:
             wr.postgresql.to_sql(data[dim_table], con, schema='public', table=f'{dim_table}', mode='overwrite', chunksize=1000)
@@ -33,26 +33,11 @@ def lambda_warehousing(event, target):
             logging.info(f'failed to load data from table "{dim_table}" into rds')
             raise e
     for fact_table in ['fact_sales_order']:
-        logging.info(f'loading data from {fact_table} into rds')
+        logging.info(f'loading {fact_table} data into rds')
         try:
             wr.postgresql.to_sql(data[fact_table], con, schema='public', table=f'{fact_table}', mode='append', chunksize=1000)
-            logging.info(f'successfully loaded batch from {fact_table} into rds')
+            logging.info(f'successfully loaded batch from "{fact_table}" into rds')
         except Exception as e:
             logging.info(f'failed to load data from table "{fact_table}" into rds')
             raise e
-    logging.info('process complete')
-    # logging.info('loading dim_staff data to rds')
-    # try:
-    #     wr.postgresql.to_sql(data['dim_staff'], con, schema="public", table="dim_staff", mode="overwrite", chunksize=1000)
-    #     logging.info('successfully loaded batch from dim_staff into rds')
-    # except Exception as e:
-    #     logging.info('failed to load data from table "dim_staff" into rds')
-    #     raise e
-    # logging.info('loading data from fact_sales_order into rds')
-    # try:
-    #     wr.postgresql.to_sql(data['fact_sales_order'], con, schema='public', table='fact_sales_order', mode='append', chunksize=1000)
-    #     logging.info('successfully loaded batch from fact_sales_order into rds')
-    # except Exception as e:
-    #     logging.info('failed to load data from table "fact_sales_order" into rds')
-    #     raise e
-    # logging.info('process complete')
+    logging.info('warehousing lambda complete')

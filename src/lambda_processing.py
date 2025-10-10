@@ -10,7 +10,7 @@ from datetime import datetime
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-TABLE_LIST = {'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated'], 'counterparty': ['counterparty_id', 'counterparty_legal_name', 'legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at', 'last_updated'], 'address': ['address_id', 'address_line_1', 'address_line_2', 'district', 'city', 'postal_code', 'country', 'phone', 'created_at', 'last_updated'], 'currency': ['currency_id', 'currency_code', 'created_at', 'last_updated']}
+TABLE_LIST = {'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated'], 'counterparty': ['counterparty_id', 'counterparty_legal_name', 'legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at', 'last_updated'], 'address': ['address_id', 'address_line_1', 'address_line_2', 'district', 'city', 'postal_code', 'country', 'phone', 'created_at', 'last_updated'], 'currency': ['currency_id', 'currency_code', 'created_at', 'last_updated'], 'design': ['design_id', 'created_at', 'last_updated', 'design_name', 'file_location', 'file_name']}
 
 def process_staff_data(data):
     department = data['department'][['department_id', 'department_name', 'location']]
@@ -23,10 +23,13 @@ def process_sales_order_data(data):
     df_sales_order = data['sales_order']
     df_sales_order[['last_updated_date', 'last_updated_time']] = df_sales_order['last_updated'].str.split(' ', n=1, expand=True)
     df_sales_order[['created_at_date', 'created_at_time']] = df_sales_order['created_at'].str.split(' ', n=1, expand=True)
-    df_sales_order.index.name = 'sales_record_id'
+    # df_sales_order.index.name = 'sales_record_id'
+    # print(df_sales_order.iloc[0])
     df_sales_order = df_sales_order.drop('created_at', axis=1)
     df_sales_order= df_sales_order.drop('last_updated', axis=1)
     df_sales_order = df_sales_order.rename(columns={'staff_id': 'sales_staff_id'})
+    df_sales_order = df_sales_order.rename(columns={'sales_order_id': 'sales_record_id'})
+    # print(df_sales_order.iloc[0])
     return df_sales_order
 
 def process_counterparty_data(data):
@@ -76,6 +79,30 @@ def process_dates(data):
     df_dates['quarter'] = dt.apply(lambda x: ((x.month-1)//3) + 1)
     return df_dates
 
+def process_design(data):
+    df_design = data['design']
+    df_design = df_design.drop('created_at', axis=1)
+    df_design = df_design.drop('last_updated', axis=1)
+    return df_design
+
+def process_location(data):
+    df_address = data['address']
+    df_sales_order = data['sales_order']
+    df_location = pd.merge(df_sales_order, df_address, left_on='agreed_delivery_location_id', right_on='address_id', how='left')
+    removed = list(df_sales_order.columns)
+    removed.append('created_at_x') 
+    removed.append('created_at_y')
+    removed.append('last_updated_x')
+    removed.append('last_updated_y')
+    removed.remove('created_at')
+    removed.remove('last_updated')
+    print(removed)
+    for column in removed:
+        df_location = df_location.drop(f'{column}', axis=1)
+    df_location = df_location.rename(columns={'address_id': 'location_id'})
+    print(df_location.iloc[0])
+    return df_location
+
 def fetch_data():
     s3_client = boto3.client('s3')
     result = s3_client.get_object(Bucket='nc-lambda-bucket-joe-final-project-2025', Key='latest_update.json')
@@ -93,7 +120,6 @@ def fetch_data():
             logging.info(f'fetching data from table "{table}" failed due to {e}')
         else:
             logging.info(f'data from table "{table}" successfully retrieved')
-    logging.info('process complete')
     return data, latest_update
 
 def lambda_processing(event, target):
@@ -107,6 +133,8 @@ def lambda_processing(event, target):
     dataframes['dim_counterparty'] = process_counterparty_data(data)
     dataframes['dim_currency'] = process_currency_data(data)
     dataframes['dim_date'] = process_dates(data)
+    dataframes['dim_design'] = process_design(data)
+    dataframes['dim_location'] = process_location(data)
     logging.info('loading processed data to s3')
     for name, df in dataframes.items():
         try:

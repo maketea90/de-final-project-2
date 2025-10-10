@@ -45,7 +45,7 @@ def test_ingestion_lambda_uploads_to_s3(mocked_aws):
     latest_update_file = [item['Key'] for item in result2['Contents']]
     # print(result2)
     ingestion_files = []
-    for table in ['sales_order', 'staff', 'department', 'counterparty', 'address', 'currency']:
+    for table in ['sales_order', 'staff', 'department', 'counterparty', 'address', 'currency', 'design']:
         ingestion_files.append(f'{table}/{latest_update[table]}.csv')
     assert set(ingestion_bucket_files) == set(ingestion_files)
     assert set(latest_update_file) == set(['latest_update.json'])
@@ -62,7 +62,7 @@ def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
     s3_client = boto3.client('s3')
     processed_bucket = s3_client.list_objects(Bucket='nc-joe-processed-bucket-2025')
     processed_bucket_files = [item['Key'] for item in processed_bucket['Contents']]
-    assert set(processed_bucket_files) == set(['dim_staff.parquet', 'fact_sales_order.parquet', 'dim_counterparty.parquet', 'dim_date.parquet', 'dim_currency.parquet'])
+    assert set(processed_bucket_files) == set(['dim_location.parquet','dim_design.parquet','dim_staff.parquet', 'fact_sales_order.parquet', 'dim_counterparty.parquet', 'dim_date.parquet', 'dim_currency.parquet'])
     # assert False
 
 @pytest.mark.skip(reason='no reason')
@@ -125,8 +125,10 @@ def test_rds_behaviour_2(mocked_aws):
     dim_staff = con_rds.run('SELECT * FROM dim_staff LIMIT 5')
     fact_sales_order = con_rds.run('SELECT * FROM fact_sales_order LIMIT 5')
     dim_date = con_rds.run('SELECT * FROM dim_date LIMIT 5')
-    print(fact_sales_order)
-    print(dim_staff)
-    print(dim_counterparty)
-    print(dim_date)
+    dim_currency = con_rds.run('SELECT * FROM dim_currency LIMIT 5')
+    # print(fact_sales_order)
+    # print(dim_staff)
+    # print(dim_counterparty)
+    # print(dim_date)
+    # print(dim_currency)
     assert False
