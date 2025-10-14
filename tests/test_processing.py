@@ -45,8 +45,10 @@ def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
     s3_client = boto3.client('s3')
     processed_bucket = s3_client.list_objects(Bucket=config['PROCESSED_BUCKET'])
     processed_bucket_files = [item['Key'] for item in processed_bucket['Contents']]
+    lambda_bucket = s3_client.list_objects(Bucket=config['LAMBDA_BUCKET'])
+    lambda_bucket_files = [item['Key'] for item in lambda_bucket['Contents']]
     assert set(processed_bucket_files) == set(['dim_location.parquet','dim_design.parquet','dim_staff.parquet', 'fact_sales_order.parquet', 'dim_counterparty.parquet', 'dim_date.parquet', 'dim_currency.parquet'])
-    # assert False
+    assert set(lambda_bucket_files) == set(['latest_update.json', 'updated_tables.json', 'new_parquets.json'])
 
 # def test_fetch_data
 # @pytest.mark.skip(reason='no')
@@ -168,3 +170,6 @@ def test_process_staff_data():
     'department_name',
     'location']
     assert list(df_staff.values[0]) == [1, 'Jeremie', 'Franey', 'jeremie.franey@terrifictotes.com', 'Purchasing', 'Manchester']
+
+def test_process_lambda():
+    pass

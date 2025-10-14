@@ -49,7 +49,7 @@ def test_ingestion_lambda_uploads_to_s3(mocked_aws):
     for table in ['sales_order', 'staff', 'department', 'counterparty', 'address', 'currency', 'design']:
         ingestion_files.append(f'{table}/{latest_update[table]}.csv')
     assert set(ingestion_bucket_files) == set(ingestion_files)
-    assert set(latest_update_file) == set(['latest_update.json'])
+    assert set(latest_update_file) == set(['latest_update.json', 'updated_tables.json'])
 
 
 def test_get_latest_update_fetches_most_recent_update_times_for_each_table(mocked_aws):

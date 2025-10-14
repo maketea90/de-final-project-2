@@ -148,15 +148,26 @@ def lambda_processing(event, target):
     s3_client = boto3.client('s3')
     logging.info('fetching data from s3 ingestion bucket')
     data, latest_update = fetch_data()
+    response = s3_client.get_object(Bucket=config['LAMBDA_BUCKET'], Key='updated_tables.json')
+    result = response['Body'].read().decode('utf-8')
+    updated_tables = json.loads(result)['updates']
     logging.info('processing data')
     dataframes = {}
-    dataframes['dim_staff'] = process_staff_data(data)
-    dataframes['fact_sales_order'] = process_sales_order_data(data)
-    dataframes['dim_counterparty'] = process_counterparty_data(data)
-    dataframes['dim_currency'] = process_currency_data(data)
-    dataframes['dim_date'] = process_dates(data)
-    dataframes['dim_design'] = process_design(data)
-    dataframes['dim_location'] = process_location(data)
+    if 'staff' in updated_tables:
+        dataframes['dim_staff'] = process_staff_data(data)
+    if 'counterparty' in updated_tables:
+        dataframes['dim_counterparty'] = process_counterparty_data(data)
+    if 'currency' in updated_tables:
+        dataframes['dim_currency'] = process_currency_data(data)
+    if 'design' in updated_tables:
+        dataframes['dim_design'] = process_design(data)
+    if 'address' in updated_tables:
+        dataframes['dim_location'] = process_location(data)
+    if 'sales_order' in updated_tables:
+        dataframes['fact_sales_order'] = process_sales_order_data(data)
+        dataframes['dim_date'] = process_dates(data)
+    new_files = list(dataframes.keys())
+    s3_client.put_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json', Body=json.dumps({'new_parquets': new_files}))
     logging.info('loading processed data to s3')
     for name, df in dataframes.items():
         try:

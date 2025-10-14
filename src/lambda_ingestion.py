@@ -53,35 +53,24 @@ def upload_data(con, client, table, latest_update):
 
 def lambda_ingestion(event, target):
     s3_client=boto3.client('s3')
-    # if force_update:
-    #     global LATEST_UPDATE
-    #     LATEST_UPDATE = {table: "0000-00-00 00:00:00.0" for table in TABLE_LIST.keys()}
-    #     s3_client.put_object(Bucket=config['LAMBDA_BUCKET'], Key='latest_update.json', Body=json.dumps(LATEST_UPDATE))
-    
-    # s3_latest_update = s3_client.get_object(Bucket='nc-lambda-bucket-joe-final-project-2025', Key='latest_update.json')
-    # result = s3_latest_update['Body'].read().decode('utf-8')
-    # LATEST_UPDATE = json.loads(result)
     db = connect_db()
     LATEST_UPDATE = get_latest_update(s3_client)
-    
-    # con = pg8000.native.Connection(config['USER'], host=config['HOST'], database=config['DATABASE'], port=config['PORT'], password=config['PASSWORD'])
+    updated_tables = []
     for table in TABLE_LIST.keys():
         upload_data(db, s3_client, table, LATEST_UPDATE)
-        # last_updated = con.run(f'SELECT last_updated::text as last_updated FROM {table} ORDER BY last_updated DESC LIMIT 1')[0][0]
-        # if last_updated > LATEST_UPDATE[table]:
-        #     logging.info(f'new update for table "{table}"; processing')
-        #     values = con.run(f'SELECT {', '.join(TABLE_LIST[table])} FROM {table} WHERE last_updated::text > \'{LATEST_UPDATE[table]}\'')
-        #     df = pd.DataFrame(data=values, columns=TABLE_LIST[table])
-        #     logging.info('connecting to s3')
-        #     try:
-        #         s3_client.put_object(Key=f'{table}/{last_updated}.csv', Body=df.to_csv(index=False), Bucket='nc-joe-ingestion-bucket-2025')
-        #         LATEST_UPDATE[table] = last_updated
-        #     except ClientError as e:
-        #         logging.info(f'upload for table "{table}" failed with error {e}')
-        #     else:
-        #         logging.info(f'upload for table "{table}" successful')
-        # else:
-        #     logging.info(f'no new updates for table "{table}"')
+        updated_tables.append(table)
     s3_client.put_object(Key='latest_update.json', Body=json.dumps(LATEST_UPDATE), Bucket=config['LAMBDA_BUCKET'])
+    s3_client.put_object(Key='updated_tables.json', Body=json.dumps({'updates': updated_tables}), Bucket=config['LAMBDA_BUCKET'])
+    # if len(updated_tables) > 0:
+    #     logger.info('Calling process_lambda')
+
+    #     lambda_client = boto3.client('lambda')
+    #     lambda_client.invoke(
+    #         FunctionName='lambda_processing',
+    #         InvocationType='Event',
+    #         Payload=json.dumps({'updates': updated_tables})
+    #     )
+    # else:
+    #     logger.info('No updates, ending here')
     logging.info('ingestion lambda complete')
     return LATEST_UPDATE
