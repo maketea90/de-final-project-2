@@ -8,6 +8,7 @@ import pg8000.native
 from dotenv import dotenv_values
 import pandas as pd
 import json
+from io import StringIO
 
 TABLE_LIST={'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated'], 'counterparty': ['counterparty_id', 'counterparty_legal_name', 'legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at', 'last_updated'], 'address': ['address_id', 'address_line_1', 'address_line_2', 'district', 'city', 'postal_code', 'country', 'phone', 'created_at', 'last_updated'], 'currency': ['currency_id', 'currency_code', 'created_at', 'last_updated'], 'design': ['design_id', 'created_at', 'last_updated', 'design_name', 'file_location', 'file_name']}
 
@@ -85,3 +86,21 @@ def test_upload_data_uploads_latest_data(mocked_aws):
         ingestion_bucket_files = [item['Key'] for item in objects['Contents']]
         assert set(ingestion_bucket_files) == set([f'{table}/{latest_update[table]}.csv' for table in uploaded])
 
+def test_upload_data_uploads_data_after_applied_cutoff_only(mocked_aws):
+    conn = boto3.resource('s3', region_name='us-east-1')
+    conn.create_bucket(Bucket=config['INGESTION_BUCKET'])
+    conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])
+    s3_client = boto3.client('s3')
+    db = connect_db()
+    # latest_update = get_latest_update(s3_client)
+    upload_data(db, s3_client, 'sales_order', latest_update={table: '2025-10-15 00:00:00.0000' for table in TABLE_LIST.keys()})
+    object = s3_client.list_objects(Bucket=config['INGESTION_BUCKET'], Prefix='sales_order/')
+    content = [item['Key'] for item in object['Contents']]
+    filename = content[0]
+    response = s3_client.get_object(Bucket=config['INGESTION_BUCKET'], Key=filename)
+    object_content = StringIO(response['Body'].read().decode('utf-8'))
+    df = pd.read_csv(object_content)
+    falsy = df['last_updated'].le('2025-10-15 00:00:00.0000').any(axis=0)
+    truthy = df['last_updated'].ge('2025-10-15 00:00:00.0000').all(axis=0)
+    assert not falsy
+    assert truthy

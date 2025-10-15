@@ -35,7 +35,7 @@ def mocked_aws(aws_credentials):
     with mock_aws():
         yield
 
-def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
+def test_processing_lambda_uploads_files_to_s3(mocked_aws):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket=config['INGESTION_BUCKET'])
     conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])
@@ -52,7 +52,7 @@ def test_processing_lambda_uploads_processed_data_to_s3(mocked_aws):
 
 # def test_fetch_data
 # @pytest.mark.skip(reason='no')
-def test_fetch_data(mocked_aws):
+def test_fetch_data_works(mocked_aws):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket=config['INGESTION_BUCKET'])
     conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])
