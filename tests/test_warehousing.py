@@ -114,28 +114,33 @@ def test_upload_dim_table_data_works():
 #     for item in test_data_sales_order:
 #         assert item in uploaded
 
-@pytest.mark.skip(reason="no reason")
+# @pytest.mark.skip(reason="no reason")
 def test_rds_behaviour_2(mocked_aws):
     conn = boto3.resource('s3', region_name='us-east-1')
-    conn.create_bucket(Bucket="nc-joe-ingestion-bucket-2025")
-    conn.create_bucket(Bucket="nc-lambda-bucket-joe-final-project-2025")
-    conn.create_bucket(Bucket='nc-joe-processed-bucket-2025')
-    latest_update = lambda_ingestion({}, {})
-    lambda_processing({}, {}) 
+    conn.create_bucket(Bucket=config['PROCESSED_BUCKET'])
+    conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])
+    test_data1 = [[1, 'Jeremie', 'Franey', 'jeremie.franey@terrifictotes.com', 'Purchasing', 'Manchester'], [2, 'Deron', 'Beier', 'deron.beier@terrifictotes.com', 'Facilities', 'Manchester'], [3, 'Jeanette', 'Erdman', 'jeanette.erdman@terrifictotes.com', 'Facilities', 'Manchester'], [4, 'Ana', 'Glover', 'ana.glover@terrifictotes.com', 'Production', 'Leeds'], [5, 'Magdalena', 'Zieme', 'magdalena.zieme@terrifictotes.com', 'HR', 'Leeds']]
+    test_df1 = pd.DataFrame(data=test_data1, columns=['staff_id', 'first_name', 'last_name', 'email_address', 'department_name', 'location'])
+    body1 = test_df1.to_parquet(index=False)
+    s3_client = boto3.client('s3')
+    s3_client.put_object(Bucket=config['PROCESSED_BUCKET'], Key='dim_staff.parquet', Body=body1)
+    s3_client.put_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json', Body=json.dumps({'new_parquets': ['dim_staff']}))
     lambda_warehousing({}, {})
     con_rds = pg8000.native.Connection('postgres', database=config['WAREHOUSE_DATABASE'], port=config['WAREHOUSE_PORT'], password=config['WAREHOUSE_PASSWORD'])
     # con_rds.run('DROP DATABASE IF EXISTS final_project')
     # con_rds.run('CREATE DATABASE final_project')
-    dim_counterparty = con_rds.run('SELECT * FROM dim_counterparty LIMIT 5')
-    dim_staff = con_rds.run('SELECT * FROM dim_staff LIMIT 5')
-    fact_sales_order = con_rds.run('SELECT * FROM fact_sales_order LIMIT 5')
-    dim_date = con_rds.run('SELECT * FROM dim_date LIMIT 5')
-    dim_currency = con_rds.run('SELECT * FROM dim_currency LIMIT 5')
-    dim_design = con_rds.run('SELECT * FROM dim_design LIMIT 5')
-    dim_location = con_rds.run('SELECT * FROM dim_location LIMIT 5')
-    print(fact_sales_order)
-    print(dim_staff)
-    print(dim_counterparty)
-    print(dim_date)
-    print(dim_currency)
-    assert False
+    # dim_counterparty = con_rds.run('SELECT * FROM dim_counterparty LIMIT 5')
+    dim_staff = con_rds.run('SELECT * FROM dim_staff WHERE staff_id BETWEEN 1 AND 5')
+    # with pytest.raises(Exception) as e:
+    assert dim_staff == test_data1
+    # fact_sales_order = con_rds.run('SELECT * FROM fact_sales_order LIMIT 5')
+    # dim_date = con_rds.run('SELECT * FROM dim_date LIMIT 5')
+    # dim_currency = con_rds.run('SELECT * FROM dim_currency LIMIT 5')
+    # dim_design = con_rds.run('SELECT * FROM dim_design LIMIT 5')
+    # dim_location = con_rds.run('SELECT * FROM dim_location LIMIT 5')
+    # print(fact_sales_order)
+    # print(dim_staff)
+    # print(dim_counterparty)
+    # print(dim_date)
+    # print(dim_currency)
+    # assert False

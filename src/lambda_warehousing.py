@@ -57,16 +57,19 @@ def connect_warehouse():
 
 def lambda_warehousing(event, target):
     s3_client = boto3.client('s3')
-    response = s3_client.get_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json')
-    result = response['Body'].read().decode('utf-8')
-    new_files = json.loads(result)['new_parquets']
-    data = fetch_all_processed_data(new_files)
+    try:
+        response = s3_client.get_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json')
+        result = response['Body'].read().decode('utf-8')
+        new_files = json.loads(result)['new_parquets']
+        data = fetch_all_processed_data(new_files)
+    except Exception as e:
+        raise e
     logging.info('connecting to RDS')
     con = connect_warehouse()
-    for dim_table in ['dim_staff', 'dim_counterparty', 'dim_date', 'dim_currency', 'dim_design', 'dim_location']:
-        logging.info(f'loading {dim_table} data to rds')
-        upload_dim_table_data(data, dim_table, con)
-    for fact_table in ['fact_sales_order']:
-        logging.info(f'loading {fact_table} data into rds')
-        upload_fact_table_data(data, fact_table, con)
+    for table in new_files:
+        logging.info(f'loading {table} data to rds')
+        if table.startswith('dim'):
+            upload_dim_table_data(data, table, con)
+        elif table.startswith('fact'):
+            upload_fact_table_data(data, table, con)
     logging.info('warehousing lambda complete')
