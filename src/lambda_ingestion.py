@@ -32,7 +32,8 @@ def connect_db():
         con = pg8000.native.Connection(config['USER'], host=config['HOST'], database=config['DATABASE'], port=config['PORT'], password=config['PASSWORD'])
         return con
     except Exception as e:
-        logging.info(f'connection to database failed: {e}')
+        logging.info(f'connection to database failed')
+        raise e
 
 def upload_data(con, client, table, latest_update):
     last_updated = con.run(f'SELECT last_updated::text as last_updated FROM {table} ORDER BY last_updated DESC LIMIT 1')[0][0]
