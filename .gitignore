@@ -1,4 +1,8 @@
 .env
-venv
+venv*
 **pycache**
 .pytest_cache
+.terraform*
+/terraform/lambdas
+/terraform/layers
+/terraform/terraform.tfstate*

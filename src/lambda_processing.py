@@ -4,7 +4,7 @@ import pandas as pd
 from io import StringIO
 import logging
 from botocore.exceptions import ClientError
-import numpy as np
+# import numpy as np
 from datetime import datetime
 from dotenv import dotenv_values
 
@@ -52,21 +52,28 @@ def process_counterparty_data(data):
     # merged = merged.fillna(value=np.nan)
     return merged
 
-def find_currency_name(code, conversions):
-    filtered = filter(lambda x: x['abbreviation'] == code, conversions)
-    return list(filtered)[0]['currency']
+def find_currency_name(code):
+    if code == 'GBP':
+        return 'Great British Pound'
+    elif code == 'USD':
+        return 'United States Dollar'
+    elif code == 'EUR':
+        return 'Euro'
+    # return list(filtered)[0]['currency']
 
 def process_currency_data(data):
     df_currency = data['currency'][['currency_id', 'currency_code']]
-    with open('./currency_code_conversions.json', 'r') as f:
-        conversions = json.load(f)
-        currency_numpy_array = df_currency[['currency_id', 'currency_code']].to_numpy()
-        data = [np.concatenate((arr, [find_currency_name(arr[1], conversions)])) for arr in currency_numpy_array]
-        df = pd.DataFrame(columns=['currency_id', 'currency_code', 'currency_name'])
-        df['currency_id'] = [arr[0] for arr in data]
-        df['currency_code'] = [arr[1] for arr in data] 
-        df['currency_name'] = [arr[2] for arr in data]
-        return df
+    df_currency['currency_name'] = df_currency['currency_code'].map(find_currency_name)
+    # with open('./currency_code_conversions.json', 'r') as f:
+    #     conversions = json.load(f)
+    #     currency_numpy_array = df_currency[['currency_id', 'currency_code']].to_numpy()
+    #     data = [np.concatenate((arr, [find_currency_name(arr[1], conversions)])) for arr in currency_numpy_array]
+    #     df = pd.DataFrame(columns=['currency_id', 'currency_code', 'currency_name'])
+    #     df['currency_id'] = [arr[0] for arr in data]
+    #     df['currency_code'] = [arr[1] for arr in data] 
+    #     df['currency_name'] = [arr[2] for arr in data]
+    #     return df
+    return df_currency
 
 def process_dates(data):
     # df_sales_order = data['sales_order'].copy()

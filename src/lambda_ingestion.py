@@ -45,12 +45,13 @@ def upload_data(con, client, table, latest_update):
         try:
             client.put_object(Key=f'{table}/{last_updated}.csv', Body=df.to_csv(index=False), Bucket=config['INGESTION_BUCKET'])
             latest_update[table] = last_updated
+            logging.info(f'upload for table "{table}" successful')
+            return True
         except ClientError as e:
             logging.info(f'upload for table "{table}" failed with error {e}')
-        else:
-            logging.info(f'upload for table "{table}" successful')
     else:
         logging.info(f'no new updates for table "{table}"')
+        return False
 
 def lambda_ingestion(event, target):
     s3_client=boto3.client('s3')
@@ -58,8 +59,9 @@ def lambda_ingestion(event, target):
     LATEST_UPDATE = get_latest_update(s3_client)
     updated_tables = []
     for table in TABLE_LIST.keys():
-        upload_data(db, s3_client, table, LATEST_UPDATE)
-        updated_tables.append(table)
+        new_update = upload_data(db, s3_client, table, LATEST_UPDATE)
+        if(new_update):
+            updated_tables.append(table)
     s3_client.put_object(Key='latest_update.json', Body=json.dumps(LATEST_UPDATE), Bucket=config['LAMBDA_BUCKET'])
     s3_client.put_object(Key='updated_tables.json', Body=json.dumps({'updates': updated_tables}), Bucket=config['LAMBDA_BUCKET'])
     # if len(updated_tables) > 0:
