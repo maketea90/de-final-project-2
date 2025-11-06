@@ -19,6 +19,9 @@ resource "aws_lambda_function" "ingestion_lambda" {
   runtime       = "python3.13"
   filename      = data.archive_file.lambda_ingestion_zip.output_path
 
+  source_code_hash = filebase64sha256(data.archive_file.lambda_ingestion_zip.output_path)
+
+
   environment {
     variables = {
       LOG_LEVEL = "INFO"
@@ -27,6 +30,12 @@ resource "aws_lambda_function" "ingestion_lambda" {
   layers = [
     aws_lambda_layer_version.lambda_layer.arn
   ]
+
+  # ✅ Increase timeout to 60 seconds (default is 3 seconds)
+  timeout = 60
+
+  # Optional: memory allocation
+  memory_size = 512
 }
 
 data "archive_file" "lambda_processing_zip" {
@@ -42,6 +51,8 @@ resource "aws_lambda_function" "processing_lambda" {
   runtime       = "python3.13"
   filename      = data.archive_file.lambda_processing_zip.output_path
 
+  source_code_hash = filebase64sha256(data.archive_file.lambda_processing_zip.output_path)
+
   environment {
     variables = {
       LOG_LEVEL = "INFO"
@@ -51,6 +62,11 @@ resource "aws_lambda_function" "processing_lambda" {
     aws_lambda_layer_version.lambda_layer.arn
 
   ]
+  # ✅ Increase timeout to 60 seconds (default is 3 seconds)
+  timeout = 60
+
+  # Optional: memory allocation
+  memory_size = 512
 }
 
 resource "aws_iam_role" "lambda_a_execution_role" {
@@ -68,6 +84,45 @@ resource "aws_iam_role" "lambda_a_execution_role" {
       }
     ]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_a_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "lambda_access" {
+  name = "lambda-access"
+  role = aws_iam_role.lambda_a_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        # Resource = ["arn:aws:secretsmanager:eu-west-2:682059290491:secret:totesys_database_credentials-60CQzv",
+        # "arn:aws:secretsmanager:eu-west-2:682059290491:secret:bucket_names-LGVI0a"]
+        Resource = [data.aws_secretsmanager_secret.totesys_credentials.arn,
+        data.aws_secretsmanager_secret.bucket_names.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+        Resource = ["${aws_s3_bucket.ingestion_bucket.arn}/*", "${aws_s3_bucket.lambda_bucket.arn}/*"]
+      }
+    ]
+  })
+}
+
+data "aws_secretsmanager_secret" "totesys_credentials" {
+  name = "totesys_database_credentials"
+}
+
+data "aws_secretsmanager_secret" "bucket_names" {
+  name = "bucket_names"
 }
 
 # Allow logging + invoking Lambda B

@@ -1,25 +1,16 @@
 resource "aws_s3_bucket" "ingestion_bucket" {
   bucket = "nc-joe-ingestion-bucket-2025"
-
-  tags = {
-    Name        = "ingestion-bucket"
-  }
+  force_destroy = true
 }
 
 resource "aws_s3_bucket" "processed_bucket" {
-    bucket = "nc-joe-processed-bucket-2025"
-
-    tags = {
-        Name = "processed-bucket"
-    }
+  bucket = "nc-joe-processed-bucket-2025"
+  
 }
 
 resource "aws_s3_bucket" "lambda_bucket" {
-    bucket = "nc-lambda-bucket-joe-final-project-2025"
-
-    tags = {
-        Name = "lambda-bucket"
-    }
+  bucket = "nc-lambda-bucket-joe-final-project-2025"
+  force_destroy = true
 }
 
 data "archive_file" "layer_zip" {
@@ -33,3 +24,7 @@ resource "aws_s3_object" "lambda_layer" {
   key    = "layers/lambda_layer.zip"
   source = data.archive_file.layer_zip.output_path
 }
+
+# output "lambda_arn" {
+#   value = aws_lambda_layer_version.lambda_layer.arn
+# }

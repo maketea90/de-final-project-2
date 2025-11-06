@@ -1,10 +1,6 @@
 import pg8000.native
-from dotenv import dotenv_values
 import pandas as pd
 import boto3
-import datetime
-# import Math
-import os
 import logging
 from botocore.exceptions import ClientError
 import json
@@ -12,13 +8,39 @@ import json
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-config = dotenv_values(".env")  # config = {"USER": "foo", "EMAIL": "foo@example.org"}
+# config = dotenv_values(".env")  # config = {"USER": "foo", "EMAIL": "foo@example.org"}
 
 TABLE_LIST = {'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated'], 'counterparty': ['counterparty_id', 'counterparty_legal_name', 'legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at', 'last_updated'], 'address': ['address_id', 'address_line_1', 'address_line_2', 'district', 'city', 'postal_code', 'country', 'phone', 'created_at', 'last_updated'], 'currency': ['currency_id', 'currency_code', 'created_at', 'last_updated'], 'design': ['design_id', 'created_at', 'last_updated', 'design_name', 'file_location', 'file_name']}
 
 # LATEST_UPDATE = {table: "0000-00-00 00:00:00.0" for table in TABLE_LIST.keys()}
 
+def get_secret(name):
+
+    secret_name = name
+    region_name = "eu-west-2"
+
+    # Create a Secrets Manager client
+    session = boto3.session.Session()
+    client = session.client(
+        service_name='secretsmanager',
+        region_name=region_name
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+        secret = json.loads(get_secret_value_response["SecretString"])
+        return secret
+    except ClientError as e:
+        # For a list of exceptions thrown, see
+        # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
+        raise e
+
+    
+
 def get_latest_update(client):
+    config = get_secret('bucket_names')
     try:
         s3_latest_update = client.get_object(Bucket=config['LAMBDA_BUCKET'], Key='latest_update.json')
         result = s3_latest_update['Body'].read().decode('utf-8')
@@ -28,6 +50,7 @@ def get_latest_update(client):
         return {table: "0000-00-00 00:00:00.0" for table in TABLE_LIST.keys()}
 
 def connect_db():
+    config = get_secret('totesys_database_credentials')
     try:
         con = pg8000.native.Connection(config['USER'], host=config['HOST'], database=config['DATABASE'], port=config['PORT'], password=config['PASSWORD'])
         return con
@@ -36,6 +59,7 @@ def connect_db():
         raise e
 
 def upload_data(con, client, table, latest_update):
+    config = get_secret('bucket_names')
     last_updated = con.run(f'SELECT last_updated::text as last_updated FROM {table} ORDER BY last_updated DESC LIMIT 1')[0][0]
     if last_updated > latest_update[table]:
         logging.info(f'new update for table "{table}"; processing')
@@ -54,6 +78,7 @@ def upload_data(con, client, table, latest_update):
         return False
 
 def lambda_ingestion(event, target):
+    config = get_secret('bucket_names')
     s3_client=boto3.client('s3')
     db = connect_db()
     LATEST_UPDATE = get_latest_update(s3_client)
