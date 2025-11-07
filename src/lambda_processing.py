@@ -4,18 +4,42 @@ import pandas as pd
 from io import StringIO
 import logging
 from botocore.exceptions import ClientError
-# import numpy as np
 from datetime import datetime
-from dotenv import dotenv_values
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 TABLE_LIST = {'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated'], 'counterparty': ['counterparty_id', 'counterparty_legal_name', 'legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at', 'last_updated'], 'address': ['address_id', 'address_line_1', 'address_line_2', 'district', 'city', 'postal_code', 'country', 'phone', 'created_at', 'last_updated'], 'currency': ['currency_id', 'currency_code', 'created_at', 'last_updated'], 'design': ['design_id', 'created_at', 'last_updated', 'design_name', 'file_location', 'file_name']}
 
-config = dotenv_values('.env')
+# config = dotenv_values('.env')
+
+def get_secret(name):
+
+    secret_name = name
+    region_name = "eu-west-2"
+
+    # Create a Secrets Manager client
+    session = boto3.session.Session()
+    client = session.client(
+        service_name='secretsmanager',
+        region_name=region_name
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+        secret = json.loads(get_secret_value_response["SecretString"])
+        return secret
+    except ClientError as e:
+        # For a list of exceptions thrown, see
+        # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
+        raise e
+    
+config = get_secret('bucket_names')
 
 def process_staff_data(data):
+    logging.info('processing staff data')
     department = data['department'][['department_id', 'department_name', 'location']]
     merged = pd.merge(data['staff'], department, on='department_id',  how='left').drop('department_id', axis=1)
     merged = merged.drop('created_at', axis=1)
@@ -23,21 +47,17 @@ def process_staff_data(data):
     return merged
 
 def process_sales_order_data(data):
+    logging.info('processing sales_order data')
     df_sales_order = data['sales_order']
     df_sales_order[['last_updated_date', 'last_updated_time']] = df_sales_order['last_updated'].str.split(' ', n=1, expand=True)
     df_sales_order[['created_date', 'created_time']] = df_sales_order['created_at'].str.split(' ', n=1, expand=True)
-    # df_sales_order.index.name = 'sales_record_id'
-    # print(df_sales_order.iloc[0])
     df_sales_order = df_sales_order.drop('created_at', axis=1)
     df_sales_order= df_sales_order.drop('last_updated', axis=1)
     df_sales_order = df_sales_order.rename(columns={'staff_id': 'sales_staff_id'})
-    # df_sales_order['sales_staff_id'] = df_sales_order['sales_staff_id'].map(int)
-    # df_sales_order = df_sales_order.rename(columns={'sales_order_id': 'sales_record_id'})
-    # print(df_sales_order.iloc[0])
-    print(df_sales_order.dtypes)
     return df_sales_order
 
 def process_counterparty_data(data):
+    logging.info('processing counterparty data')
     df_counterparty = data['counterparty']
     df_address = data['address']
     
@@ -48,8 +68,6 @@ def process_counterparty_data(data):
     for column in ['legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at_x', 'last_updated_x','created_at_y', 'last_updated_y']:
         merged = merged.drop(f'{column}', axis=1)
     merged = merged.rename(columns={'address_line_1': 'counterparty_legal_address_line_1', 'address_line_2': 'counterparty_legal_address_line_2', 'district': 'counterparty_legal_district', 'city': 'counterparty_legal_city', 'postal_code': 'counterparty_legal_postcode', 'country': 'counterparty_legal_country', 'phone': 'counterparty_legal_phone_number'})
-    # print(merged.iloc[0])
-    # merged = merged.fillna(value=np.nan)
     return merged
 
 def find_currency_name(code):
@@ -62,6 +80,7 @@ def find_currency_name(code):
     # return list(filtered)[0]['currency']
 
 def process_currency_data(data):
+    logging.info('processing currency data')
     df_currency = data['currency'][['currency_id', 'currency_code']]
     df_currency['currency_name'] = df_currency['currency_code'].map(find_currency_name)
     # with open('./currency_code_conversions.json', 'r') as f:
@@ -76,6 +95,7 @@ def process_currency_data(data):
     return df_currency
 
 def process_dates(data):
+    logging.info('processing dates data')
     # df_sales_order = data['sales_order'].copy()
     # df_sales_order[['last_updated_date', 'last_updated_time']] = df_sales_order['last_updated'].str.split(' ', n=1, expand=True)
     # df_sales_order[['created_date', 'created_time']] = df_sales_order['created_at'].str.split(' ', n=1, expand=True)
@@ -95,18 +115,17 @@ def process_dates(data):
     return df_dates
 
 def process_design(data):
+    logging.info('processing design data')
     df_design = data['design']
     df_design = df_design.drop('created_at', axis=1)
     df_design = df_design.drop('last_updated', axis=1)
     return df_design
 
 def process_location(data):
+    logging.info('processing location data')
     df_address = data['address']
     df_sales_order = data['sales_order']
-    # print(df_address.iloc[0])
-    # print(df_sales_order.iloc[0])
     df_location = pd.merge(df_sales_order, df_address, left_on='agreed_delivery_location_id', right_on='address_id', how='left')
-    # print(df_location.iloc[0])
     removed = list(df_sales_order.columns)
     removed.append('created_at_x') 
     removed.append('created_at_y')
@@ -114,15 +133,14 @@ def process_location(data):
     removed.append('last_updated_y')
     removed.remove('created_at')
     removed.remove('last_updated')
-    # print(removed)
     for column in removed:
         df_location = df_location.drop(f'{column}', axis=1)
     df_location = df_location.rename(columns={'address_id': 'location_id'})
-    # print(df_location.iloc[0])
     df_location.drop_duplicates(inplace=True)
     return df_location
 
 def fetch_file_from_ingest(client, path):
+    
     try:
         response = client.get_object(Bucket=config['INGESTION_BUCKET'], Key=path)
         object_content = StringIO(response['Body'].read().decode('utf-8'))
@@ -131,34 +149,30 @@ def fetch_file_from_ingest(client, path):
         # logging.info(f'data fetch failed: {e}')
         raise e
 
-def fetch_data():
+def fetch_data(updated_tables):
     s3_client = boto3.client('s3')
     result = s3_client.get_object(Bucket=config['LAMBDA_BUCKET'], Key='latest_update.json')
     result = result['Body'].read().decode('utf-8')
     latest_update = json.loads(result)
     print(latest_update)
     data = {}
-    for table in TABLE_LIST.keys():
+    for table in updated_tables:
         try:
             logging.info(f'fetching latest data from "{table}" table')
-            # response = s3_client.get_object(Bucket=config['INGESTION_BUCKET'], Key=f'{table}/{latest_update[table]}.csv')
-            # object_content = StringIO(response['Body'].read().decode('utf-8'))
-            # data[table] = pd.read_csv(object_content)
             data[table] = fetch_file_from_ingest(s3_client, f'{table}/{latest_update[table]}.csv')
-        except ClientError as e:
-            logging.info(f'fetching data from table "{table}" failed due to {e}')
+        except Exception as e:
+            logging.info(f'fetching data from table "{table}" failed: {e}')
         else:
             logging.info(f'data from table "{table}" successfully retrieved')
     return data, latest_update
 
 def lambda_processing(event, target):
+    logging.info('begin processing')
     s3_client = boto3.client('s3')
     logging.info('fetching data from s3 ingestion bucket')
-    data, latest_update = fetch_data()
-    response = s3_client.get_object(Bucket=config['LAMBDA_BUCKET'], Key='updated_tables.json')
-    result = response['Body'].read().decode('utf-8')
-    updated_tables = json.loads(result)['updates']
-    logging.info('processing data')
+    updated_tables = event['updates']
+    data, latest_update = fetch_data(updated_tables)
+    logging.info('processing new data')
     dataframes = {}
     if 'staff' in updated_tables:
         dataframes['dim_staff'] = process_staff_data(data)
@@ -174,7 +188,7 @@ def lambda_processing(event, target):
         dataframes['fact_sales_order'] = process_sales_order_data(data)
         dataframes['dim_date'] = process_dates(data)
     new_files = list(dataframes.keys())
-    s3_client.put_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json', Body=json.dumps({'new_parquets': new_files}))
+    # s3_client.put_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json', Body=json.dumps({'new_parquets': new_files}))
     logging.info('loading processed data to s3')
     for name, df in dataframes.items():
         try:
@@ -185,4 +199,10 @@ def lambda_processing(event, target):
         else:
             logging.info(f'upload of processed data "{name}" was successful')
     logging.info('processing lambda complete')
+    lambda_client = boto3.client('lambda')
+    lambda_client.invoke(
+        FunctionName='warehouse-lambda',
+        InvocationType='Event',
+        Payload=json.dumps({'new_parquets': new_files})
+    )
     return latest_update

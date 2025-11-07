@@ -86,14 +86,14 @@ resource "aws_iam_role" "lambda_a_execution_role" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_a_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
+# resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+#   role       = aws_iam_role.lambda_a_execution_role.name
+#   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+# }
 
-resource "aws_iam_role_policy" "lambda_access" {
+resource "aws_iam_policy" "lambda_access" {
   name = "lambda-access"
-  role = aws_iam_role.lambda_a_execution_role.id
+  # role = aws_iam_role.lambda_a_execution_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -105,53 +105,112 @@ resource "aws_iam_role_policy" "lambda_access" {
         ]
         # Resource = ["arn:aws:secretsmanager:eu-west-2:682059290491:secret:totesys_database_credentials-60CQzv",
         # "arn:aws:secretsmanager:eu-west-2:682059290491:secret:bucket_names-LGVI0a"]
-        Resource = [data.aws_secretsmanager_secret.totesys_credentials.arn,
-        data.aws_secretsmanager_secret.bucket_names.arn]
+        Resource = ["*"]
       },
       {
         Effect = "Allow"
         Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
-        Resource = ["${aws_s3_bucket.ingestion_bucket.arn}/*", "${aws_s3_bucket.lambda_bucket.arn}/*"]
+        Resource = ["${aws_s3_bucket.ingestion_bucket.arn}/*", "${aws_s3_bucket.lambda_bucket.arn}/*", "${aws_s3_bucket.processed_bucket.arn}/*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
 }
 
-data "aws_secretsmanager_secret" "totesys_credentials" {
-  name = "totesys_database_credentials"
+resource "aws_iam_role_policy" "warehousing_vpc_access" {
+  name = "lambda-vpc-access"
+  role = aws_iam_role.lambda_warehouse_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
-data "aws_secretsmanager_secret" "bucket_names" {
-  name = "bucket_names"
+resource "aws_iam_role_policy_attachment" "lambda_access_attach" {
+  for_each   = {
+    lambda1 = aws_iam_role.lambda_a_execution_role.name
+    lambda2 = aws_iam_role.lambda_b_execution_role.name
+    lambda3 = aws_iam_role.lambda_warehouse_execution_role.name
+  }
+
+  role       = each.value
+  policy_arn = aws_iam_policy.lambda_access.arn
 }
 
-# Allow logging + invoking Lambda B
-# resource "aws_iam_role_policy" "lambda_a_policy" {
-#   name = "lambda-a-policy"
-#   role = aws_iam_role.lambda_a_execution_role.id
-
-#   policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Effect = "Allow"
-#         Action = [
-#           "logs:CreateLogGroup",
-#           "logs:CreateLogStream",
-#           "logs:PutLogEvents"
-#         ]
-#         Resource = "arn:aws:logs:*:*:*"
-#       },
-#       {
-#         Effect = "Allow"
-#         Action = [
-#           "lambda:InvokeFunction"
-#         ]
-#         Resource = aws_lambda_function.lambda_b.arn
-#       }
-#     ]
-#   })
+# data "aws_secretsmanager_secret" "totesys_credentials" {
+#   name = "totesys_database_credentials"
 # }
+
+# data "aws_secretsmanager_secret" "bucket_names" {
+#   name = "bucket_names"
+# }
+
+# data "aws_secretsmanager_secret" "db_credentials" {
+#   name        = "postgres-db-credentials"
+# }
+
+resource "aws_iam_role_policy" "lambda_a_invoke_policy" {
+  name = "lambda-a-invoke-policy"
+  role = aws_iam_role.lambda_a_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = aws_lambda_function.processing_lambda.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_warehouse_invoke_policy" {
+  name = "lambda-warehouse-invoke-policy"
+  role = aws_iam_role.lambda_b_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = aws_lambda_function.warehouse_lambda.arn
+      }
+    ]
+  })
+}
 
 resource "aws_iam_role" "lambda_b_execution_role" {
   name = "lambda-b-execution-role"
@@ -170,10 +229,66 @@ resource "aws_iam_role" "lambda_b_execution_role" {
   })
 }
 
-resource "aws_lambda_permission" "allow_lambda_a_invoke" {
-  statement_id  = "AllowLambdaAInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.processing_lambda.function_name
-  principal     = "lambda.amazonaws.com"
-  source_arn    = aws_lambda_function.ingestion_lambda.arn
+data "archive_file" "lambda_warehousing_zip" {
+  type        = "zip"
+  source_file  = "${path.module}/../src/lambda_warehousing.py"
+  output_path = "${path.module}/lambdas/lambda_warehousing.zip"
 }
+
+resource "aws_iam_role" "lambda_warehouse_execution_role" {
+    name = "lambda-warehousing-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "warehouse_lambda" {
+  function_name = "warehouse-lambda"
+  role          = aws_iam_role.lambda_warehouse_execution_role.arn
+  handler       = "lambda_warehousing.lambda_warehousing"
+  runtime       = "python3.13"
+  filename      = data.archive_file.lambda_warehousing_zip.output_path
+
+  source_code_hash = filebase64sha256(data.archive_file.lambda_warehousing_zip.output_path)
+
+  environment {
+    variables = {
+      LOG_LEVEL = "INFO"
+    }
+  }
+  layers = [
+    aws_lambda_layer_version.lambda_layer.arn
+
+  ]
+
+  vpc_config {
+        subnet_ids = [
+            aws_subnet.private_1.id, 
+            aws_subnet.private_2.id
+        ]
+        security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+  # ✅ Increase timeout to 60 seconds (default is 3 seconds)
+  timeout = 60
+
+  # Optional: memory allocation
+  memory_size = 512
+}
+
+# resource "aws_lambda_permission" "allow_lambda_a_invoke" {
+#   statement_id  = "AllowLambdaAInvoke"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.processing_lambda.function_name
+#   principal     = "lambda.amazonaws.com"
+#   source_arn    = aws_lambda_function.ingestion_lambda.arn
+# }

@@ -1,16 +1,16 @@
 resource "aws_s3_bucket" "ingestion_bucket" {
   bucket = "nc-joe-ingestion-bucket-2025"
-  force_destroy = true
+  object_lock_enabled = true
 }
 
 resource "aws_s3_bucket" "processed_bucket" {
   bucket = "nc-joe-processed-bucket-2025"
+  object_lock_enabled = true
   
 }
 
 resource "aws_s3_bucket" "lambda_bucket" {
   bucket = "nc-lambda-bucket-joe-final-project-2025"
-  force_destroy = true
 }
 
 data "archive_file" "layer_zip" {
