@@ -39,6 +39,7 @@ make-build: create-environment build-requirements
 create-folders:
 	@echo ">>> Creating folders for Lambda files"
 	@mkdir -p terraform/lambdas
+	@mkdir -p terraform/layers
 
 # Initialize Terraform
 init-terraform:

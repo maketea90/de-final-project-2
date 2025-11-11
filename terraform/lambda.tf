@@ -172,9 +172,9 @@ resource "aws_iam_role_policy_attachment" "lambda_access_attach" {
 #   name = "bucket_names"
 # }
 
-# data "aws_secretsmanager_secret" "db_credentials" {
-#   name        = "postgres-db-credentials"
-# }
+# # data "aws_secretsmanager_secret" "db_credentials" {
+# #   name        = "postgres-db-credentials"
+# # }
 
 resource "aws_iam_role_policy" "lambda_a_invoke_policy" {
   name = "lambda-a-invoke-policy"

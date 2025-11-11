@@ -199,10 +199,12 @@ def lambda_processing(event, target):
         else:
             logging.info(f'upload of processed data "{name}" was successful')
     logging.info('processing lambda complete')
-    lambda_client = boto3.client('lambda')
-    lambda_client.invoke(
-        FunctionName='warehouse-lambda',
-        InvocationType='Event',
-        Payload=json.dumps({'new_parquets': new_files})
-    )
+    if len(new_files) > 0:
+        logging.info('calling warehouse lambda')
+        lambda_client = boto3.client('lambda')
+        lambda_client.invoke(
+            FunctionName='warehouse-lambda',
+            InvocationType='Event',
+            Payload=json.dumps({'new_parquets': new_files})
+        )
     return latest_update

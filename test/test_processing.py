@@ -4,13 +4,13 @@ from moto import mock_aws
 import boto3
 import pytest
 import os
-from moto.core import patch_client
 import pg8000.native
 from dotenv import dotenv_values
 import pandas as pd
 import json
 import datetime
 from decimal import Decimal
+from unittest.mock import patch, MagicMock
 
 TABLE_LIST={'sales_order': ['sales_order_id', 'created_at', 'last_updated', 'design_id', 'staff_id', 'counterparty_id', 'units_sold', 'unit_price', 'currency_id', 'agreed_delivery_date', 'agreed_payment_date', 'agreed_delivery_location_id'], 'staff': ['staff_id', 'first_name', 'last_name', 'department_id', 'email_address', 'created_at', 'last_updated'], 'department': ['department_id', 'department_name', 'location', 'manager', 'created_at', 'last_updated'], 'counterparty': ['counterparty_id', 'counterparty_legal_name', 'legal_address_id', 'commercial_contact', 'delivery_contact', 'created_at', 'last_updated'], 'address': ['address_id', 'address_line_1', 'address_line_2', 'district', 'city', 'postal_code', 'country', 'phone', 'created_at', 'last_updated'], 'currency': ['currency_id', 'currency_code', 'created_at', 'last_updated'], 'design': ['design_id', 'created_at', 'last_updated', 'design_name', 'file_location', 'file_name']}
 
@@ -35,7 +35,37 @@ def mocked_aws(aws_credentials):
     with mock_aws():
         yield
 
-def test_processing_lambda_uploads_files_to_s3(mocked_aws):
+@pytest.fixture
+def mock_lambda_invoke(scope='function'):
+    """
+    Mocks only boto3 Lambda client `.invoke` method.
+    Other boto3 clients (S3, DynamoDB, etc.) remain untouched.
+    """
+    original_client = boto3.client
+
+    def client_patch(service_name, *args, **kwargs):
+        # Only patch the 'lambda' client
+        client = original_client(service_name, *args, **kwargs)
+        if service_name == "lambda":
+            # Patch the invoke method
+            client.invoke = MagicMock(return_value={
+                "StatusCode": 200,
+                "Payload": b'{"mocked": true}'
+            })
+        return client
+
+    with patch("boto3.client", side_effect=client_patch):
+        yield
+
+@pytest.fixture
+def mock_get_secret():
+
+
+
+    with patch("src.lambda_processing.get_secret", return_value={"INGESTION_BUCKET": 'nc-joe-ingestion-bucket-2025', "PROCESSED_BUCKET": "nc-joe-processed-bucket-2025", "LAMBDA_BUCKET": 'nc-lambda-bucket-joe-final-project-2025'}):
+        yield
+
+def test_processing_lambda_uploads_files_to_s3(mocked_aws, mock_lambda_invoke):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket=config['INGESTION_BUCKET'])
     conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])
@@ -158,7 +188,7 @@ def test_process_staff_data():
     'location']
     assert list(df_staff.values[0]) == [1, 'Jeremie', 'Franey', 'jeremie.franey@terrifictotes.com', 'Purchasing', 'Manchester']
 
-def test_process_lambda(mocked_aws):
+def test_process_lambda(mocked_aws, mock_lambda_invoke):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket=config['INGESTION_BUCKET'])
     conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])

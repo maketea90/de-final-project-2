@@ -1,6 +1,4 @@
 from src.lambda_warehousing import lambda_warehousing, fetch_all_processed_data, fetch_processed_data_by_table, upload_dim_table_data, upload_fact_table_data
-from src.lambda_ingestion import lambda_ingestion
-from src.lambda_processing import lambda_processing
 from moto import mock_aws
 import boto3
 import pytest
@@ -8,7 +6,7 @@ import os
 import pg8000.native
 from dotenv import dotenv_values
 import pandas as pd
-import json
+from unittest.mock import patch, MagicMock
 
 config = dotenv_values('.env')
 
@@ -31,7 +29,15 @@ def mocked_aws(aws_credentials):
     with mock_aws():
         yield
 
-def test_fetch_processed_data_by_table_works(mocked_aws):
+@pytest.fixture
+def mock_get_secret():
+
+
+
+    with patch("src.lambda_warehousing.get_secret", return_value={"user":"postgres","password":"dbpass", "host": "localhost:5432", "dbname": "final_project", "PROCESSED_BUCKET": "nc-joe-processed-bucket-2025"}):
+        yield
+
+def test_fetch_processed_data_by_table_works(mocked_aws, mock_get_secret):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket=config['PROCESSED_BUCKET'])
     test_data1 = [[1, 'Jeremie', 'Franey', 'jeremie.franey@terrifictotes.com', 'Purchasing', 'Manchester'], [2, 'Deron', 'Beier', 'deron.beier@terrifictotes.com', 'Facilities', 'Manchester'], [3, 'Jeanette', 'Erdman', 'jeanette.erdman@terrifictotes.com', 'Facilities', 'Manchester'], [4, 'Ana', 'Glover', 'ana.glover@terrifictotes.com', 'Production', 'Leeds'], [5, 'Magdalena', 'Zieme', 'magdalena.zieme@terrifictotes.com', 'HR', 'Leeds']]
@@ -47,7 +53,7 @@ def test_fetch_processed_data_by_table_works(mocked_aws):
     assert list(df.values[3]) == [4, 'Ana', 'Glover', 'ana.glover@terrifictotes.com', 'Production', 'Leeds']
     assert list(df.values[4]) == [5, 'Magdalena', 'Zieme', 'magdalena.zieme@terrifictotes.com', 'HR', 'Leeds']
 
-def test_upload_dim_table_data_works():
+def test_upload_dim_table_data_works(mocked_aws, mock_get_secret):
     test_data_staff = [[1, 'Jeremie', 'Franey', 'jeremie.franey@terrifictotes.com', 'Purchasing', 'Manchester'], [2, 'Deron', 'Beier', 'deron.beier@terrifictotes.com', 'Facilities', 'Manchester'], [3, 'Jeanette', 'Erdman', 'jeanette.erdman@terrifictotes.com', 'Facilities', 'Manchester'], [4, 'Ana', 'Glover', 'ana.glover@terrifictotes.com', 'Production', 'Leeds'], [5, 'Magdalena', 'Zieme', 'magdalena.zieme@terrifictotes.com', 'HR', 'Leeds']]
     test_df_staff = pd.DataFrame(data=test_data_staff, columns=['staff_id', 'first_name', 'last_name', 'email_address', 'department_name', 'location'])
     data = {'dim_staff': test_df_staff}
@@ -56,7 +62,7 @@ def test_upload_dim_table_data_works():
     uploaded = con_rds.run('SELECT * FROM dim_staff WHERE staff_id BETWEEN 1 AND 5')
     assert list(uploaded) == test_data_staff
 
-def test_warehousing(mocked_aws):
+def test_warehousing(mocked_aws, mock_get_secret):
     conn = boto3.resource('s3', region_name='us-east-1')
     conn.create_bucket(Bucket=config['PROCESSED_BUCKET'])
     conn.create_bucket(Bucket=config['LAMBDA_BUCKET'])
@@ -65,7 +71,6 @@ def test_warehousing(mocked_aws):
     body1 = test_df1.to_parquet(index=False)
     s3_client = boto3.client('s3')
     s3_client.put_object(Bucket=config['PROCESSED_BUCKET'], Key='dim_staff.parquet', Body=body1)
-    s3_client.put_object(Bucket=config['LAMBDA_BUCKET'], Key='new_parquets.json', Body=json.dumps({'new_parquets': ['dim_staff']}))
     lambda_warehousing({}, {})
     con_rds = pg8000.native.Connection('postgres', database=config['WAREHOUSE_DATABASE'], port=config['WAREHOUSE_PORT'], password=config['WAREHOUSE_PASSWORD'])
     dim_staff = con_rds.run('SELECT * FROM dim_staff WHERE staff_id BETWEEN 1 AND 5')

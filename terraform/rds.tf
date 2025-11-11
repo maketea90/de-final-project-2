@@ -70,7 +70,7 @@ resource "aws_db_instance" "warehouse" {
 }
 
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name        = "postgres-db-credentials"
+  name        = "postgres-db-credentials-2"
   description = "RDS Postgres credentials for my app"
 }
 
