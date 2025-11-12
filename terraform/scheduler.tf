@@ -39,7 +39,7 @@ resource "aws_scheduler_schedule" "lambda_schedule" {
     mode = "OFF"
   }
 
-  schedule_expression = "rate(1 hour)"
+  schedule_expression = "rate(20 minutes)"
 
   target {
     arn      = aws_lambda_function.ingestion_lambda.arn
